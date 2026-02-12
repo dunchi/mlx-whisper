@@ -24,7 +24,7 @@ class VoiceRecorderApp(rumps.App):
         # 설정 로드
         self.config_path = Path.home() / ".config" / "voice-recorder" / "config.json"
         self.load_config()
-        self.title = f"🎤{LANG_BADGE.get(self.config['language'], self.config['language'].upper())}"
+        self.title = "🎤"
         # 오디오 설정
         self.FORMAT = pyaudio.paInt16
         self.CHANNELS = 1
@@ -42,7 +42,6 @@ class VoiceRecorderApp(rumps.App):
 
         # 핫키 이벤트 (pynput 스레드 -> event set -> 메인 타이머 처리)
         self._toggle_event = threading.Event()
-        self._lang_event = threading.Event()
 
         # 타이머: UI 큐 drain + 이벤트 처리
         self._ui_timer = rumps.Timer(self._drain_mainloop, 0.05)
@@ -61,13 +60,7 @@ class VoiceRecorderApp(rumps.App):
     def load_config(self):
         """설정 파일 로드"""
         default_config = {
-            # 녹음 토글 단축키(기본값 변경)
             "record_hotkey": "ctrl+shift+m",
-
-            # 언어 스위치(순환) 전용 단축키: cmd+shift+space
-            # 요청대로 녹음 단축키 목록에서 제거하고, 언어 전환용으로 사용
-            "lang_hotkey": "cmd+shift+space",
-
             "language": "ko",
             "model": "mlx-community/whisper-large-v3-turbo",
         }
@@ -90,8 +83,6 @@ class VoiceRecorderApp(rumps.App):
         # record_hotkey가 없으면 안전하게 기본값
         if not self.config.get("record_hotkey"):
             self.config["record_hotkey"] = default_config["record_hotkey"]
-        if not self.config.get("lang_hotkey"):
-            self.config["lang_hotkey"] = default_config["lang_hotkey"]
 
     def save_config(self):
         """설정 파일 저장"""
@@ -132,10 +123,6 @@ class VoiceRecorderApp(rumps.App):
             self._toggle_event.clear()
             self.toggle_recording(None)
 
-        if self._lang_event.is_set():
-            self._lang_event.clear()
-            self.cycle_language()
-
         # 2) UI 큐 drain
         for _ in range(50):  # 한 tick에 과도 실행 방지
             try:
@@ -156,8 +143,6 @@ class VoiceRecorderApp(rumps.App):
         self.menu.clear()
 
         record_hk = self.config.get("record_hotkey", "")
-        lang_hk = self.config.get("lang_hotkey", "")
-        lang_code = self.config.get("language", "ko")
 
         # 녹음 상태
         status = "🔴 녹음 중지" if self.is_recording else "녹음 시작"
@@ -167,15 +152,9 @@ class VoiceRecorderApp(rumps.App):
         )
         self.menu.add(self.status_item)
 
-        # 언어 스위치 안내 (고정 단축키)
-        self.menu.add(rumps.MenuItem(
-            f"언어 전환: {self.format_hotkey(lang_hk)}  (현재: {lang_code})",
-            callback=None
-        ))
-
         self.menu.add(rumps.separator)
 
-        # 단축키 설정(녹음 토글용) — 요청대로 cmd+shift+space 제외
+        # 단축키 설정(녹음 토글용)
         hotkey_menu = rumps.MenuItem("녹음 단축키 설정")
         hotkeys = [
             ("ctrl+shift+m", "⌃⇧M"),
@@ -191,23 +170,6 @@ class VoiceRecorderApp(rumps.App):
             )
             hotkey_menu.add(item)
         self.menu.add(hotkey_menu)
-
-        # 언어 설정(직접 선택)
-        lang_menu = rumps.MenuItem("전사 언어")
-        languages = [
-            ("ko", "한국어"),
-            ("en", "English"),
-            ("ja", "日本語"),
-            ("zh", "中文"),
-            ("vi", "Tiếng Việt"),
-        ]
-        for code, name in languages:
-            item = rumps.MenuItem(
-                f"{'✓ ' if lang_code == code else '   '}{name}",
-                callback=lambda sender, c=code: self.set_language(c)
-            )
-            lang_menu.add(item)
-        self.menu.add(lang_menu)
 
         self.menu.add(rumps.separator)
         self.menu.add(rumps.MenuItem("종료", callback=self.quit_app))
@@ -269,19 +231,17 @@ class VoiceRecorderApp(rumps.App):
         return keys
 
     def setup_hotkey(self):
-        """글로벌 단축키 설정 (녹음 토글 + 언어 전환)"""
+        """글로벌 단축키 설정 (녹음 토글)"""
         if self.hotkey_listener:
             self.hotkey_listener.stop()
 
-        record_keys = self.parse_hotkey_for_pynput(self.config.get("record_hotkey", "ctrl+shift+space"))
-        lang_keys = self.parse_hotkey_for_pynput(self.config.get("lang_hotkey", "cmd+shift+space"))
+        record_keys = self.parse_hotkey_for_pynput(self.config.get("record_hotkey", "ctrl+shift+m"))
 
         current_keys = set()
         fired_record = False
-        fired_lang = False
 
         def on_press(key):
-            nonlocal fired_record, fired_lang
+            nonlocal fired_record
             nk = self._norm_key(key)
             current_keys.add(nk)
 
@@ -289,19 +249,13 @@ class VoiceRecorderApp(rumps.App):
                 fired_record = True
                 self._toggle_event.set()
 
-            if (not fired_lang) and lang_keys.issubset(current_keys):
-                fired_lang = True
-                self._lang_event.set()
-
         def on_release(key):
-            nonlocal fired_record, fired_lang
+            nonlocal fired_record
             nk = self._norm_key(key)
             current_keys.discard(nk)
 
             if not record_keys.issubset(current_keys):
                 fired_record = False
-            if not lang_keys.issubset(current_keys):
-                fired_lang = False
 
         self.hotkey_listener = keyboard.Listener(on_press=on_press, on_release=on_release)
         self.hotkey_listener.start()
@@ -370,7 +324,7 @@ class VoiceRecorderApp(rumps.App):
         self.frames = []
 
         # UI 업데이트는 메인루프에서
-        self.title = f"🔴{LANG_BADGE.get(self.config['language'], self.config['language'].upper())}"
+        self.title = "🔴"
         self.build_menu()
 
         try:
@@ -383,7 +337,7 @@ class VoiceRecorderApp(rumps.App):
             )
         except Exception as e:
             self.is_recording = False
-            self.title = f"🎤{LANG_BADGE.get(self.config['language'], self.config['language'].upper())}"
+            self.title = "🎤"
             self.build_menu()
             self._notify("오디오 오류", "", str(e)[:120])
             return
@@ -407,7 +361,7 @@ class VoiceRecorderApp(rumps.App):
             return
 
         self.is_recording = False
-        self.title = f"⏳{LANG_BADGE.get(self.config['language'], self.config['language'].upper())}"
+        self.title = "⏳"
         self.build_menu()
 
         if self.record_thread:
@@ -425,7 +379,7 @@ class VoiceRecorderApp(rumps.App):
             self.stream = None
 
         if not self.frames:
-            self.title = f"🎤{LANG_BADGE.get(self.config['language'], self.config['language'].upper())}"
+            self.title = "🎤"
             self.build_menu()
             return
 
@@ -452,11 +406,11 @@ class VoiceRecorderApp(rumps.App):
             wf.writeframes(b"".join(frames_snapshot))
             wf.close()
 
-            # mlx-whisper로 전사
+            # mlx-whisper로 전사 (한국어 고정)
             result = mlx_whisper.transcribe(
                 temp_path,
                 path_or_hf_repo=self.config["model"],
-                language=self.config["language"]
+                language="ko"
             )
             text = (result.get("text") or "").strip()
 
@@ -489,7 +443,7 @@ class VoiceRecorderApp(rumps.App):
                     pass
 
             # UI 복귀
-            self._ui(lambda: setattr(self, "title", f"🎤{LANG_BADGE.get(self.config['language'], self.config['language'].upper())}"))
+            self._ui(lambda: setattr(self, "title", "🎤"))
             self._ui(self.build_menu)
 
     # ---------------------------
