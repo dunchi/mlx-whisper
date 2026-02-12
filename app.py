@@ -118,6 +118,15 @@ class VoiceRecorderApp(rumps.App):
 
     def _drain_mainloop(self, _):
         """메인 루프에서: 이벤트 처리 + UI 큐 실행"""
+        # 0) 파일 트리거 체크
+        trigger_file = Path("/tmp/voice-toggle")
+        if trigger_file.exists():
+            try:
+                trigger_file.unlink()
+            except Exception:
+                pass
+            self._toggle_event.set()
+
         # 1) 핫키 이벤트 처리
         if self._toggle_event.is_set():
             self._toggle_event.clear()
