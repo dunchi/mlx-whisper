@@ -38,3 +38,19 @@ end run
 1. myspeak.app 더블클릭으로 실행
 2. 메뉴바 🎤 아이콘으로 제어
 3. 종료는 메뉴바 아이콘 → "종료" 선택
+
+### myspeak-trigger (외부 녹음 토글)
+앱 내부 단축키(ctrl+shift+m) 외에도 외부에서 녹음을 제어할 수 있는 트리거입니다.
+
+**작동 원리**:
+- `/tmp/voice-toggle` 파일을 생성
+- 메인 앱이 0.05초마다 파일 존재 체크
+- 파일이 있으면 녹음 토글 실행 후 파일 삭제
+
+**사용 예시**:
+- Automator 앱으로 생성 (Run Shell Script 액션)
+- Alfred/Raycast workflow에서 실행
+- 시스템 키보드 단축키 할당
+- Stream Deck 버튼으로 실행
+
+**파일**: `myspeak-trigger.sh`
