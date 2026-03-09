@@ -34,23 +34,14 @@ on run {input, parameters}
 end run
 ```
 
-### 사용 방법
-1. myspeak.app 더블클릭으로 실행
-2. 메뉴바 🎤 아이콘으로 제어
-3. 종료는 메뉴바 아이콘 → "종료" 선택
+### 앱 재생성 및 사용 방법
+**상세한 가이드는 [APPS.md](./APPS.md)를 참조하세요.**
 
-### myspeak-trigger (외부 녹음 토글)
-앱 내부 단축키(ctrl+shift+m) 외에도 외부에서 녹음을 제어할 수 있는 트리거입니다.
-
-**작동 원리**:
-- `/tmp/voice-toggle` 파일을 생성
-- 메인 앱이 0.05초마다 파일 존재 체크
-- 파일이 있으면 녹음 토글 실행 후 파일 삭제
-
-**사용 예시**:
-- Automator 앱으로 생성 (Run Shell Script 액션)
-- Alfred/Raycast workflow에서 실행
-- 시스템 키보드 단축키 할당
-- Stream Deck 버튼으로 실행
-
-**파일**: `myspeak-trigger.sh`
+APPS.md에 포함된 내용:
+- myspeak.app 재생성 방법 (Automator 단계별 가이드)
+- myspeaktoggle.app 재생성 방법
+- 로그인 시 자동 실행 설정
+- 키보드 단축키 설정
+- Alfred/Raycast 연동 방법
+- 문제 해결 가이드
+- 사용법 및 팁
