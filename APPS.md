@@ -39,12 +39,14 @@ open -a Automator
 
 ```applescript
 on run {input, parameters}
-  do shell script "cd /Users/hanju/02hobby/mlx-whisper && /Users/hanju/02hobby/mlx-whisper/venv/bin/python app.py > /dev/null 2>&1 &"
+  do shell script "export PATH=/opt/homebrew/bin:$PATH && cd /Users/hanju/02hobby/mlx-whisper && /Users/hanju/02hobby/mlx-whisper/venv/bin/python app.py > /dev/null 2>&1 &"
   return input
 end run
 ```
 
-**중요**: 경로는 실제 프로젝트 위치에 맞게 수정하세요.
+**중요**:
+- 경로는 실제 프로젝트 위치에 맞게 수정하세요.
+- `export PATH=/opt/homebrew/bin:$PATH`는 **필수**입니다. mlx-whisper가 ffmpeg를 찾기 위해 필요합니다.
 
 ### 5. 저장
 1. "파일" → "저장" (⌘S)
@@ -275,6 +277,98 @@ pip install mlx mlx-whisper numba llvmlite
 2. 시스템 환경설정 → 사운드 → 입력에서 마이크 선택
 3. 입력 레벨이 너무 낮지 않은지
 4. 터미널에서 직접 실행하여 오류 확인
+
+### 클립보드 복사/붙여넣기가 안 됨 (가장 흔한 문제)
+
+이 문제는 주로 **두 가지 원인**으로 발생합니다:
+
+#### 1. ffmpeg를 찾을 수 없음 (FileNotFoundError: 'ffmpeg')
+
+**증상**:
+- 녹음은 되지만 전사가 안 됨
+- 모래시계를 거치지 않고 바로 🎤로 돌아옴
+- 클립보드에 아무것도 복사되지 않음
+
+**원인**:
+- mlx-whisper는 오디오 처리를 위해 ffmpeg 필요
+- Automator 환경에서는 `/opt/homebrew/bin`이 기본 PATH에 없음
+- ffmpeg를 찾지 못해 전사 실패
+
+**해결**:
+1. ffmpeg가 설치되어 있는지 확인:
+   ```bash
+   which ffmpeg
+   # /opt/homebrew/bin/ffmpeg 가 나와야 함
+   ```
+
+2. 없다면 설치:
+   ```bash
+   brew install ffmpeg
+   ```
+
+3. **myspeak.app의 AppleScript에 PATH 추가** (가장 중요!):
+   ```applescript
+   export PATH=/opt/homebrew/bin:$PATH
+   ```
+
+   완전한 코드:
+   ```applescript
+   on run {input, parameters}
+     do shell script "export PATH=/opt/homebrew/bin:$PATH && cd /Users/hanju/02hobby/mlx-whisper && /Users/hanju/02hobby/mlx-whisper/venv/bin/python app.py > /dev/null 2>&1 &"
+     return input
+   end run
+   ```
+
+4. 앱 재시작
+
+**디버깅 방법**:
+오류를 확인하려면 AppleScript의 출력을 로그 파일로 변경:
+```applescript
+... app.py > /tmp/myspeak.log 2>&1 &
+```
+그런 다음:
+```bash
+cat /tmp/myspeak.log
+```
+
+#### 2. 접근성 권한 부족
+
+**증상**:
+- 전사는 성공 (알림이 뜸)
+- 클립보드에는 복사됨 (직접 Cmd+V 하면 붙여넣어짐)
+- 하지만 자동 붙여넣기가 안 됨
+
+**원인**:
+- pyautogui가 키보드 입력(Cmd+V)을 하려면 접근성 권한 필요
+- myspeak.app에 접근성 권한이 없음
+
+**해결**:
+1. **시스템 설정** → **개인 정보 보호 및 보안** → **접근성**
+2. 왼쪽 하단 자물쇠 클릭 후 암호 입력
+3. 오른쪽에서 **myspeak.app** 찾기
+   - 있으면 체크 확인
+   - 없으면 **+** 버튼 클릭 → myspeak.app 추가
+4. 앱 재시작
+
+**중요**:
+- **Python.app이 아닌 myspeak.app에 권한을 줘야 합니다**
+- Automator 앱이 실행하는 스크립트는 앱 자체의 권한을 사용합니다
+
+### 마이크/접근성 권한 종합 정리
+
+**필요한 권한**:
+- ✅ **myspeak.app** → 마이크 권한 (녹음용)
+- ✅ **myspeak.app** → 접근성 권한 (자동 붙여넣기용)
+
+**불필요한 권한**:
+- ❌ Python.app → 권한 불필요 (Automator가 실행하므로)
+- ❌ Terminal → 권한 불필요 (Automator로 실행하므로)
+
+**권한 확인 방법**:
+1. **시스템 설정** → **개인 정보 보호 및 보안**
+2. **마이크** 또는 **접근성** 선택
+3. 오른쪽 목록에서 **myspeak** 찾기
+4. 체크 되어 있는지 확인
 
 ### venv가 없거나 손상됨
 
